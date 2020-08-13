@@ -1,23 +1,23 @@
-#include <iostream>
-#include <time.h>
-#include <thread>
+#include <fstream>
+#include <sys/time.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <omp.h>
 
 using namespace std;
 
 #define N 1000
-
-const int MAX = 8;
+#define THREADNO 8
 
 int startArrayA[N][N];
 int startArrayB[N][N];
 int endArray[N][N];
-thread T[N];
+
+int step = 0;
 
 //intialises array using random values of size N
 void intialise(int array[N][N]) {
-	cout<<"intialising array... ";
+	printf("\nIntialising array... ");
 	for (int i = 0; i < N; i++)
 	{
 		for (int j = 0; j < N; j++)
@@ -25,29 +25,13 @@ void intialise(int array[N][N]) {
 			array[i][j] = rand() % ((100 - 1) + 1) + 1;
 		}
 	}
-	cout<<"complete"<<endl;
+	printf("complete");
 }	
-
-//print array to the console
-void print(int array[N][N]){
-	cout <<"[";
-	for (int i = 0; i < N; i++) {
-		cout << "[";
-		for (int j = 0; j < N; j++) {
-			cout << array[i][j];
-			std::cout << " ";
-		}
-		std::cout << "]\n";
-	}
-	std::cout << "]\n\n";
-}		
 
 //multiply the matricies sequentially
 void Sequential()
 {
-    cout << "Matrix Multiplication... ";
-
-	clock_t beginTime = clock(); //Start timer
+    printf("\nMatrix Multiplication... ");
 
 	//Matrix Multiplication
 	int num;
@@ -65,43 +49,37 @@ void Sequential()
 		}
 	}
 
-	clock_t endTime = clock(); //End timer
+	printf("Complete \n");
 
-	cout << "Complete" << endl;
-
-	double elapsedTime = double(endTime - beginTime)/ CLOCKS_PER_SEC;
-
-	cout << "Processing Time: " << elapsedTime << " secs" << endl;
-	cout << " " << endl;
 }
 
 //multiply matricies using threads
-void *Threaded(void* arg)
+void* Threaded(void* arg)
 {
-    int num = 0; 
+    int num = step++; 
   
-    for (int i = num * N / MAX; i < (num + 1) * N / MAX; i++)  
+    for (int i = num * N / N; i < (num + 1) * N / N; i++)  
         for (int j = 0; j < N; j++)  
             for (int k = 0; k < N; k++)  
-                endArray[i][j] += startArrayA[i][k] * startArrayB[k][j];
-    
-}
+                endArray[i][j] += startArrayA[i][k] * startArrayB[k][j]; 
 
+	return 0;
+} 
+
+//multiply matricies using OpenMP
 void OpenMP()
 {
-    cout<<"OpenMP Matrix Multiplication with " << MAX << " threads... ";
-	clock_t beginTime = clock(); //Start timer
+    printf("\nOpenMP Matrix Multiplication... ");
 
-    //Matrix Multiplication using OpenMP parallel for loop
-    #pragma omp parallel
+	#pragma omp parallel
 	{
 		#pragma omp for
 		for (int i = 0; i < N; i++)
 		{
 			for (int j = 0; j < N; j++)
 			{	
-
 				int num = 0;
+				
 				for (int k = 0; k < N; k++)
 				{
 					num += startArrayA[i][k] * startArrayB[k][j];
@@ -111,51 +89,62 @@ void OpenMP()
 		}
 	}
     
-    clock_t endTime = clock(); //Timer Stops
-
-    cout << "Complete" << endl;
-
-    double timeElapsed = double(endTime - beginTime) / CLOCKS_PER_SEC;
-
-    cout << "Processing Time: " << timeElapsed << " secs" << endl;
-    cout << " " << endl;
-
+    printf("Complete \n");
 }
 
 int main()
 {
+	struct timeval timecheck;
     srand(time(NULL));
     
-	cout<<"Array size (N x N) is: "<<N<<endl;
+	printf("\nArray size (N x N) is: %d", N);
+	printf("\nNumber of threads is: %d", THREADNO, "\n");
 	intialise(startArrayA);
 	intialise(startArrayB);
 
+	gettimeofday(&timecheck, NULL);
+	long beginTime = (long)timecheck.tv_sec * 1000 + (long)timecheck.tv_usec /1000; //Start timer
 	Sequential();
+	gettimeofday(&timecheck, NULL);       
+    long endTime = (long)timecheck.tv_sec * 1000 + (long)timecheck.tv_usec /1000; //Timer Stops
+	long elapsedTime = endTime - beginTime;
 
-	cout << "Threaded Matrix Multiplication...";
+    printf("Processing Time in ms: %d", elapsedTime, "\n");
 
-    clock_t beginTime = clock(); //Timer begins
+	printf("\nThreaded Matrix Multiplication...");
 
-    pthread_t threads[MAX]; 
-  
-    for (int i = 0; i < MAX; i++) { 
-        int* k;
-        pthread_create(&threads[i], NULL, Threaded, (void *)(k)); 
+	gettimeofday(&timecheck, NULL);
+    beginTime = (long)timecheck.tv_sec * 1000 + (long)timecheck.tv_usec /1000; //Timer begins
+
+    pthread_t threads[THREADNO]; 
+    
+    //Creating threads
+    for (int i = 0; i < THREADNO; i++) 
+    { 
+        int* p; 
+        pthread_create(&threads[i], NULL, Threaded, (void*)(p)); 
     } 
   
-    // joining and waiting for all threads to complete 
-    for (int i = 0; i < MAX; i++)  
-        pthread_join(threads[i], NULL);   
+    //Joining threads
+    for (int i = 0; i < THREADNO; i++)  
+        pthread_join(threads[i], NULL);     
+    
+	gettimeofday(&timecheck, NULL);
+    endTime = (long)timecheck.tv_sec * 1000 + (long)timecheck.tv_usec /1000;
+    printf("Complete \n");
 
-    clock_t endTime = clock();//Stopping the timer
-    cout << "Complete" << endl;
+    elapsedTime = endTime - beginTime;
 
-    double elapsedTime = double(endTime - beginTime) / CLOCKS_PER_SEC;
+    printf("Processing Time in ms: %d", elapsedTime);
 
-    cout << "Processing Time: " << elapsedTime << " secs" << endl;
-    cout << " " << endl;
-
+	gettimeofday(&timecheck, NULL);
+	beginTime = (long)timecheck.tv_sec * 1000 + (long)timecheck.tv_usec /1000; //Start timer
 	OpenMP();
+	gettimeofday(&timecheck, NULL);       
+    endTime = (long)timecheck.tv_sec * 1000 + (long)timecheck.tv_usec /1000; //Timer Stops
+	elapsedTime = endTime - beginTime;
+
+    printf("Processing Time in ms: %d", elapsedTime);
 
 	return 0;
 }
