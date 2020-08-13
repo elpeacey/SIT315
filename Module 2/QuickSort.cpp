@@ -1,6 +1,5 @@
 #include <random>
 #include <sys/time.h>
-#include <omp.h>
 #include <pthread.h> 
 
 using namespace std;
